@@ -16,6 +16,26 @@ class ImageProcessor:
             return cv.cvtColor(image, cv.COLOR_BGR2GRAY)
         elif filter_name == "gaussian_blur":
             return cv.GaussianBlur(image, (5, 5), 1.5)
+        elif filter_name == "sepia":
+            kernel = np.array([[0.272, 0.534, 0.131],
+                               [0.349, 0.686, 0.168],
+                               [0.393, 0.769, 0.189]])
+            return cv.transform(image, kernel)
+        elif filter_name == "canny":
+            return cv.Canny(image, 100, 200)
+        elif filter_name == "brightness":
+            return cv.convertScaleAbs(image, alpha=1.2, beta=30)  # Aumenta brilho
+        elif filter_name == "negative":
+            return cv.bitwise_not(image)
+        elif filter_name == "motion_blur":
+            kernel_size = 15
+            kernel = np.zeros((kernel_size, kernel_size))
+            kernel[int((kernel_size-1)/2), :] = np.ones(kernel_size)
+            kernel = kernel / kernel_size
+            return cv.filter2D(image, -1, kernel)
+        elif filter_name == "color_inversion":
+            b, g, r = cv.split(image)
+            return cv.merge((255-b, 255-g, 255-r))
         else:
             raise ValueError(f"Filtro '{filter_name}' não implementado.")
 
