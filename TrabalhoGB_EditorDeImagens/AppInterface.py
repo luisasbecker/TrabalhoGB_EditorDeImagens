@@ -1,10 +1,15 @@
 import cv2 as cv
 import numpy as np
 from ImageProcessor import ImageProcessor
+from StickerManager import StickerManager
+from VideoCaptureManager import VideoCaptureManager
+from Utils import resize_image
 
 class AppInterface:
     def __init__(self):
         self.image_processor = ImageProcessor()
+        self.sticker_manager = StickerManager()
+        self.video_manager = VideoCaptureManager()
         self.image_original = None  # Imagem original carregada
         self.image = None  # Imagem processada
         self.filters = [
@@ -19,18 +24,36 @@ class AppInterface:
             "emboss",
             "edge_detection"
         ]
-        self.menu_height = 120  # Altura do menu para os botões
+        self.stickers = [
+            "bunny.png",
+            "car.png",
+            "drift_king.png",
+            "hat.png",
+            "money.png",
+        ]
+        self.total_menu_height = 240  # Altura do menu para os botões
 
     def mouse_callback(self, event, x, y, flags, param):
         """Callback para capturar cliques no menu de filtros."""
         if event == cv.EVENT_LBUTTONDOWN:  # Clique com o botão esquerdo do mouse
-            if y < self.menu_height:  # Verifica se o clique foi no menu
-                button_width = param.shape[1] // len(self.filters)  # Largura dinâmica dos botões
-                button_index = x // button_width  # Índice do botão clicado
-                if button_index < len(self.filters):
-                    filter_name = self.filters[button_index]
-                    print(f"Aplicando filtro: {filter_name}")
-                    self.apply_filter(filter_name)
+            menu_rows = 2  # Número de linhas no menu (filtros e adesivos)
+            button_filters_width = param.shape[1] // len(self.filters)  # Largura dos botões para filtros
+            button_stickers_width = param.shape[1] // len(self.stickers) # Langura dos botões para stickers
+            button_height = self.total_menu_height // menu_rows  # Altura de cada linha do menu
+            if y < self.total_menu_height:  # Verifica se o clique foi no menu
+                row_index = y // button_height  # Determina a linha clicada
+                if row_index == 0:  # Primeira linha: Filtros
+                    button_index = x // button_filters_width  # Determina o índice do botão clicado
+                    if button_index < len(self.filters):
+                        filter_name = self.filters[button_index]
+                        print(f"Aplicando filtro: {filter_name}")
+                        self.apply_filter(filter_name)
+                elif row_index == 1:  # Segunda linha: Stickers
+                    button_index = x // button_stickers_width  # Determina o índice do botão clicado
+                    if button_index < len(self.stickers):
+                        sticker_name = self.stickers[button_index]
+                        print(f"Aplicando adesivo: {sticker_name}")
+                        self.apply_sticker(button_index, 0, 0)
 
     def apply_filter(self, filter_name):
         """Aplica um filtro à imagem original."""
@@ -40,37 +63,70 @@ class AppInterface:
                 return
 
             # Aplica o filtro na imagem original
-            processed_image = self.image_processor.apply_filter(self.image_original.copy(), filter_name)
-            resized_image = self.resize_image(processed_image)
+            if self.image is None:
+                self.image = self.image_original.copy()
+            processed_image = self.image_processor.apply_filter(self.image.copy(), filter_name)
+            resized_image = resize_image(processed_image, self.total_menu_height)
             self.show_image_with_menu(resized_image)
             self.image = processed_image  # Atualiza apenas a imagem processada exibida
         except ValueError as e:
             print(f"Erro ao aplicar o filtro: {e}")
 
-    def resize_image(self, image, max_width=1200, max_height=900):
-        """Redimensiona a imagem para caber na tela."""
-        height, width = image.shape[:2]
-        scale = min(max_width / width, (max_height - self.menu_height) / height)
-        new_dimensions = (int(width * scale), int(height * scale))
-        return cv.resize(image, new_dimensions)
+    def apply_sticker(self, sticker_index, x, y):
+        """Adiciona um adesivo à imagem."""
+        try:
+            if self.image_original is None:
+                print("Erro: Nenhuma imagem carregada.")
+                return
+            
+            # Carregar o adesivo
+            self.sticker_manager.load_stickers("TrabalhoGB_EditorDeImagens/Stickers") # Carrega os stickers
+
+            # Verificar imagem disponível
+            if self.image is None:
+                self.image = self.image_original.copy()
+            image_with_sticker = self.sticker_manager.apply_sticker(self.image.copy(), sticker_index, x, y)
+            resized_image = resize_image(image_with_sticker, self.total_menu_height)
+            self.show_image_with_menu(resized_image)
+            self.image = image_with_sticker # Atualiza apenas a imagem processada exibida
+        except ValueError as e:
+            print(f"Erro ao aplicar adesivo: {e}")
 
     def show_image_with_menu(self, image):
         """Exibe a imagem com o menu de filtros."""
-        menu = np.zeros((self.menu_height, image.shape[1], 3), dtype=np.uint8)
-        button_width = image.shape[1] // len(self.filters)
+        row_height = self.total_menu_height // 2
+        menu = np.zeros((self.total_menu_height, image.shape[1], 3), dtype=np.uint8)
 
-        # Desenha os botões numerados
+        button_filters_width = image.shape[1] // len(self.filters)
+        # Primeira linha: desenha os botões numerados
         for i in range(len(self.filters)):
-            x_start = i * button_width
-            x_end = x_start + button_width
-            cv.rectangle(menu, (x_start, 0), (x_end, self.menu_height), (200, 200, 200), -1)
-            cv.rectangle(menu, (x_start + 10, 10), (x_end - 10, self.menu_height - 10), (150, 150, 150), -1)
+            x_start = i * button_filters_width
+            x_end = x_start + button_filters_width
+            cv.rectangle(menu, (x_start, 0), (x_end, row_height), (200, 200, 200), -1) # Altura total da primeira linha
+            cv.rectangle(menu, (x_start + 10, 10), (x_end - 10, row_height - 10), (150, 150, 150), -1)
             
             # Adiciona o número ao botão
             text = str(i + 1)
             text_size = cv.getTextSize(text, cv.FONT_HERSHEY_SIMPLEX, 1, 2)[0]
-            text_x = x_start + (button_width - text_size[0]) // 2
-            text_y = (self.menu_height + text_size[1]) // 2
+            text_x = x_start + (button_filters_width - text_size[0]) // 2
+            text_y = (row_height + text_size[1]) // 2
+            cv.putText(menu, text, (text_x, text_y), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
+
+        button_stickers_width = image.shape[1] // len(self.stickers)
+        # Segunda linha: desenho botões stickers
+        for i in range(len(self.stickers)):
+            x_start = i * button_stickers_width
+            x_end = x_start + button_stickers_width
+            y_start = row_height # Comeca depois da primeira linha
+            y_end = y_start + row_height
+            cv.rectangle(menu, (x_start, y_start), (x_end, y_end), (200, 200, 200), -1)  # Altura total da segunda linha
+            cv.rectangle(menu, (x_start + 10, y_start + 10), (x_end - 10, y_end - 10), (150, 150, 150), -1)
+            
+            # Adiciona o número ao botão
+            text = str(i + 1)
+            text_size = cv.getTextSize(text, cv.FONT_HERSHEY_SIMPLEX, 1, 2)[0]
+            text_x = x_start + (button_stickers_width - text_size[0]) // 2
+            text_y = y_start + (row_height + text_size[1]) // 2
             cv.putText(menu, text, (text_x, text_y), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
 
         # Concatena o menu acima da imagem
@@ -87,7 +143,7 @@ class AppInterface:
             return
 
         print("Use o menu de filtros clicando nos botões! Aperte S para salvar o resultado!")
-        resized_image = self.resize_image(self.image_original)
+        resized_image = resize_image(self.image_original, self.total_menu_height)
         self.show_image_with_menu(resized_image)
 
         # Adicionar opção de salvamento ao pressionar 's'
