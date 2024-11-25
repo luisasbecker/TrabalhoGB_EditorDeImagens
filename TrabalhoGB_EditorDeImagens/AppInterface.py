@@ -11,7 +11,8 @@ class AppInterface:
         self.sticker_manager = StickerManager()
         self.video_manager = VideoCaptureManager()
         self.image_original = None  # Imagem original carregada
-        self.image = None  # Imagem processada
+        self.image_processed = None  # Imagem processada
+        self.sticker_layer = None # Camada de stickers
         self.filters = [
             "gaussian_blur",
             "sepia",
@@ -62,13 +63,11 @@ class AppInterface:
                 print("Erro: Nenhuma imagem carregada.")
                 return
 
-            # Aplica o filtro na imagem original
-            if self.image is None:
-                self.image = self.image_original.copy()
-            processed_image = self.image_processor.apply_filter(self.image.copy(), filter_name)
-            resized_image = resize_image(processed_image, self.total_menu_height)
-            self.show_image_with_menu(resized_image)
-            self.image = processed_image  # Atualiza apenas a imagem processada exibida
+            processed_image = self.image_processor.apply_filter(self.image_original.copy(), filter_name) # Aplique o filtro à imagem base (sem alterar a camada de stickers)
+            resized_image = resize_image(processed_image, self.total_menu_height) # Redimensione a imagem para ajustar o menu
+            self.image_processed = resized_image  # Atualiza apenas a imagem processada exibida
+            combined_image = self.combine_layers() # Combina a imagem processada com a camada de stickers
+            self.show_image_with_menu(combined_image) # Exibe a imagem com os stickers e o menu
         except ValueError as e:
             print(f"Erro ao aplicar o filtro: {e}")
 
@@ -79,16 +78,22 @@ class AppInterface:
                 print("Erro: Nenhuma imagem carregada.")
                 return
             
+            # Verificar imagem disponível
+            if self.image_processed is None:
+                self.image_processed = self.image_original.copy()
+            
+            # Garantir que a camada de stickers está inicializada com 4 canais (RGBA)
+            if self.sticker_layer is None:
+                self.sticker_layer = np.zeros((self.image_original.shape[0], self.image_original.shape[1], 4), dtype=np.uint8)
+            
             # Carregar o adesivo
             self.sticker_manager.load_stickers("TrabalhoGB_EditorDeImagens/Stickers") # Carrega os stickers
+            self.sticker_layer = self.sticker_manager.apply_sticker(self.image_processed.copy(), sticker_index, x, y)
 
-            # Verificar imagem disponível
-            if self.image is None:
-                self.image = self.image_original.copy()
-            image_with_sticker = self.sticker_manager.apply_sticker(self.image.copy(), sticker_index, x, y)
-            resized_image = resize_image(image_with_sticker, self.total_menu_height)
-            self.show_image_with_menu(resized_image)
-            self.image = image_with_sticker # Atualiza apenas a imagem processada exibida
+            # Atualiza a imagem com a camada de stickers
+            combined_image = self.combine_layers()  # Combina as camadas (filtro + adesivo)
+            resized_image = resize_image(combined_image, self.total_menu_height)
+            self.show_image_with_menu(resized_image)  # Exibe a imagem com o menu
         except ValueError as e:
             print(f"Erro ao aplicar adesivo: {e}")
 
@@ -134,6 +139,29 @@ class AppInterface:
         cv.imshow("Editor de Imagens", combined)
         cv.setMouseCallback("Editor de Imagens", self.mouse_callback, param=combined)
 
+    def combine_layers(self):
+        """Combina a imagem de base, a camada de filtros, e a camada de stickers"""
+        combined_image = self.image_original.copy()  # Start with the base image
+
+        if self.image_processed is not None:
+            combined_image = self.image_processed.copy()  # Use the processed image as the base
+        
+        if self.sticker_layer is not None:
+            # Overlay the sticker layer
+            if self.sticker_layer.shape[2] == 4:  # RGBA (sticker with transparency)
+                alpha = self.sticker_layer[..., 3] / 255.0  # Extract the alpha channel
+            else:  # If no alpha channel, assume the sticker is fully opaque
+                alpha = np.ones_like(self.sticker_layer[..., 0], dtype=np.float32)
+
+            # Blend the sticker onto the processed image
+            for c in range(0, 3):  # Blend for each color channel
+                combined_image[..., c] = (
+                    alpha * self.sticker_layer[..., c] +
+                    (1 - alpha) * combined_image[..., c]
+                )
+        
+        return combined_image
+
     def image_input(self):
         """Permite ao usuário carregar uma imagem e usar filtros com menu interativo."""
         path = input("Digite o caminho da imagem: ")
@@ -169,9 +197,9 @@ class AppInterface:
 
     def save_image(self):
         """Salva a imagem processada."""
-        if self.image is not None:
+        if self.image_processed is not None:
             output_path = input("Digite o caminho e o nome para salvar a imagem (ex.: output.jpg): ")
-            cv.imwrite(output_path, self.image)
+            cv.imwrite(output_path, self.image_processed)
             print(f"Imagem salva em: {output_path}")
         else:
             print("Nenhuma imagem processada disponível para salvar.")

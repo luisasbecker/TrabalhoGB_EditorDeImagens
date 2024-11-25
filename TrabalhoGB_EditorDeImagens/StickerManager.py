@@ -22,39 +22,24 @@ class StickerManager:
             # Dimensoes da imagem de fundo
             bg_height, bg_width = background.shape[:2]
 
-            print(sticker.shape[:2])
+            # Criar uma nova imagem transparente com as mesmas dimensões da imagem de fundo
+            transparent_image = np.zeros((bg_height, bg_width, 4), dtype=np.uint8)  # RGBA (com fundo transparente)
+
             # Redimensionar o sticker
             sticker = resize_image(sticker, 0 ,bg_width // 4, bg_height // 4)
-            print(sticker.shape[:2])
-
-            # Separar canais do sticker
-            b, g, r, a = cv.split(sticker)
-            mask = a
-            mask_inv = cv.bitwise_not(mask)
 
             # Dimensões do sticker
             h, w, _ = sticker.shape
 
             # Verificar limites para evitar erro ao acessar ROI
-            if y + h > background.shape[0] or x + w > background.shape[1]:
+            if y + h > transparent_image.shape[0] or x + w > transparent_image.shape[1]:
                 raise ValueError("Sticker ultrapassa os limites da imagem de fundo.")
 
-            # ROI da imagem de fundo
-            roi = background[y:y+h, x:x+w]
+            # Colocar o sticker diretamente na imagem transparente no local especificado (x, y)
+            transparent_image[y:y+h, x:x+w] = sticker
 
-            # Garantir que a máscara é do tipo correto (CV_8U)
-            if mask_inv.dtype != "uint8":
-                mask_inv = mask_inv.astype("uint8")
-            if mask.dtype != "uint8":
-                mask = mask.astype("uint8")
-
-            # Combinação
-            img_bg = cv.bitwise_and(roi, roi, mask=mask_inv)
-            img_fg = cv.bitwise_and(sticker[:, :, :3], sticker[:, :, :3], mask=mask)
-            combined = cv.add(img_bg, img_fg)
-
-            # Atualizar o ROI na imagem de fundo
-            background[y:y+h, x:x+w] = combined
-            return background
+            cv.imwrite("./img.png", transparent_image)
+            # Retornar a imagem com o sticker aplicado
+            return transparent_image
         else:
             raise IndexError("Índice do sticker inválido.")
