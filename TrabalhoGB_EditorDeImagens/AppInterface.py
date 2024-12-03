@@ -2,7 +2,7 @@ import cv2 as cv
 import numpy as np
 import os
 from ImageProcessor import ImageProcessor
-from StickerManager import StickerManager
+from StickerManager import StickerManager, StickerLayer
 from VideoCaptureManager import VideoCaptureManager
 from Utils import resize_image
 
@@ -56,6 +56,42 @@ class AppInterface:
                         sticker_name = self.stickers[button_index]
                         print(f"Aplicando adesivo: {sticker_name}")
                         self.apply_sticker(button_index, 0, 0)
+            else:
+                sticker_x, sticker_y = self.sticker_layer.position
+                sticker_w, sticker_h = self.sticker_layer.size
+                if (sticker_x <= x <= (sticker_x + sticker_w)) and (sticker_y <= y <= (sticker_y + sticker_h + self.total_menu_height)):
+                    # Sticker is clicked
+                    self.sticker_layer.is_sticker_selected = True
+                    print(f"Sticker clicked at {self.sticker_layer.position}")
+                    self.listen_for_keypress()
+
+    def listen_for_keypress(self):
+        """Listen for keyboard events to move the sticker"""
+        print("Press 'y', 'h', 'g', or 'j' to move the sticker.")
+
+        while self.sticker_layer.is_sticker_selected:
+            key = cv.waitKey(1)  # Wait for keypress (1 ms delay)
+            x, y = self.sticker_layer.position  # Current position
+            sticker_id = self.sticker_layer.id  # Sticker ID
+
+            if key == ord('y'):  # Move up
+                y -= 10
+            elif key == ord('h'):  # Move down
+                y += 10
+            elif key == ord('g'):  # Move left
+                x -= 10
+            elif key == ord('j'):  # Move right
+                x += 10
+            elif key == 27:  # ESC key to stop moving
+                print("Sticker move stopped.")
+                self.sticker_layer.is_sticker_selected = False
+                break
+            else:
+                continue  # Skip to next iteration if no relevant key is pressed
+
+            # Update position and redraw sticker
+            self.sticker_layer.position = (x, y)
+            self.apply_sticker(sticker_id, x, y)
 
     def apply_filter(self, filter_name):
         """Aplica um filtro à imagem original."""
@@ -85,11 +121,15 @@ class AppInterface:
             
             # Garantir que a camada de stickers está inicializada com 4 canais (RGBA)
             if self.sticker_layer is None:
-                self.sticker_layer = np.zeros((self.image_original.shape[0], self.image_original.shape[1], 4), dtype=np.uint8)
+                self.sticker_layer = StickerLayer()
             
             # Carregar o adesivo
             self.sticker_manager.load_stickers("TrabalhoGB_EditorDeImagens/Stickers") # Carrega os stickers
-            self.sticker_layer = self.sticker_manager.apply_sticker(self.image_processed.copy(), sticker_index, x, y)
+            sticker_image = self.sticker_manager.apply_sticker(self.image_processed.copy(), sticker_index, x, y)
+            self.sticker_layer.id = sticker_index
+            self.sticker_layer.load(sticker_image)
+            self.sticker_layer.set_position(x, y)
+
 
             # Atualiza a imagem com a camada de stickers
             combined_image = self.combine_layers()  # Combina as camadas (filtro + adesivo)
@@ -150,14 +190,14 @@ class AppInterface:
         if self.sticker_layer is not None:
             # Overlay the sticker layer
             if self.sticker_layer.shape[2] == 4:  # RGBA (sticker with transparency)
-                alpha = self.sticker_layer[..., 3] / 255.0  # Extract the alpha channel
+                alpha = self.sticker_layer.layer[..., 3] / 255.0  # Extract the alpha channel
             else:  # If no alpha channel, assume the sticker is fully opaque
-                alpha = np.ones_like(self.sticker_layer[..., 0], dtype=np.float32)
+                alpha = np.ones_like(self.sticker_layer.layer[..., 0], dtype=np.float32)
 
             # Blend the sticker onto the processed image
             for c in range(0, 3):  # Blend for each color channel
                 combined_image[..., c] = (
-                    alpha * self.sticker_layer[..., c] +
+                    alpha * self.sticker_layer.layer[..., c] +
                     (1 - alpha) * combined_image[..., c]
                 )
         
@@ -173,7 +213,6 @@ class AppInterface:
             return
         else:
             print("Imagem carregada com sucesso!")
-            cv.imshow("Imagem Carregada", self.image_original)
 
         print("Use o menu de filtros clicando nos botões! Aperte S para salvar o resultado!")
 
@@ -189,7 +228,7 @@ class AppInterface:
     def save_image(self):
         """Salva a imagem na pasta correspondente."""
         # Diretório para salvar imagens
-        output_dir = os.path.join(os.path.dirname(os.getcwd()), "Imagens")
+        output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ImagensExportadas")
 
         # Cria o diretório se ele não existir
         if not os.path.exists(output_dir):
@@ -199,7 +238,7 @@ class AppInterface:
         output_path = os.path.join(output_dir, "imagem_editada.jpg")
 
         # Salvar a imagem
-        if cv.imwrite(output_path, self.image_original):
+        if cv.imwrite(output_path, self.image_processed):
             print(f"Imagem salva com sucesso em: {output_path}")
         else:
             print("Erro ao salvar a imagem.")
@@ -226,15 +265,6 @@ class AppInterface:
         finally:
             self.video_manager.release()
             cv.destroyAllWindows()
-
-    # def save_image(self):
-    #     """Salva a imagem processada."""
-    #     if self.image_processed is not None:
-    #         output_path = input("Digite o caminho e o nome para salvar a imagem (ex.: output.jpg): ")
-    #         cv.imwrite(output_path, self.image_processed)
-    #         print(f"Imagem salva em: {output_path}")
-    #     else:
-    #         print("Nenhuma imagem processada disponível para salvar.")
 
     def capture_photo(self):
         """Captura uma foto da webcam para edição."""

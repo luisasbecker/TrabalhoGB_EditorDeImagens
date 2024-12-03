@@ -38,8 +38,26 @@ class StickerManager:
             # Colocar o sticker diretamente na imagem transparente no local especificado (x, y)
             transparent_image[y:y+h, x:x+w] = sticker
 
-            cv.imwrite("./img.png", transparent_image)
             # Retornar a imagem com o sticker aplicado
             return transparent_image
         else:
             raise IndexError("Índice do sticker inválido.")
+
+class StickerLayer:
+    def __init__(self, image = None, metadata = None):
+        self.id = None  # Identifier for the sticker
+        self.position = (0, 0)  # Position of the sticker (x, y)
+        self.size = (0, 0)  # Size of the sticker (width, height)
+        self.is_sticker_selected = False  # Whether a sticker is selected
+        self.layer = None  # The sticker layer (image data)
+        self.shape = (0, 0, 4)  # Shape of the sticker layer (height, width, channels)
+
+    def load(self, sticker_image):
+        """Loads a sticker image into the layer."""
+        self.layer = sticker_image
+        self.size = (sticker_image.shape[1], sticker_image.shape[0])  # Width, height
+        self.shape = sticker_image.shape
+
+    def set_position(self, x, y):
+        """Sets the position of the sticker."""
+        self.position = (x, y)
