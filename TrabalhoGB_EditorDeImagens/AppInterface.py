@@ -1,5 +1,6 @@
 import cv2 as cv
 import numpy as np
+import os
 from ImageProcessor import ImageProcessor
 from StickerManager import StickerManager
 from VideoCaptureManager import VideoCaptureManager
@@ -164,13 +165,18 @@ class AppInterface:
 
     def image_input(self):
         """Permite ao usuário carregar uma imagem e usar filtros com menu interativo."""
-        path = input("Digite o caminho da imagem: ")
+        path = input("Digite o caminho da imagem: ").strip()
         self.image_original = cv.imread(path)
+
         if self.image_original is None:
             print("Erro: não foi possível carregar a imagem. Verifique o caminho.")
             return
+        else:
+            print("Imagem carregada com sucesso!")
+            cv.imshow("Imagem Carregada", self.image_original)
 
         print("Use o menu de filtros clicando nos botões! Aperte S para salvar o resultado!")
+
         resized_image = resize_image(self.image_original, self.total_menu_height)
         self.show_image_with_menu(resized_image)
 
@@ -180,46 +186,177 @@ class AppInterface:
             self.save_image()
         cv.destroyAllWindows()
 
+    def save_image(self):
+        """Salva a imagem na pasta correspondente."""
+        # Diretório para salvar imagens
+        output_dir = os.path.join(os.path.dirname(os.getcwd()), "Imagens")
+
+        # Cria o diretório se ele não existir
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        # Nome do arquivo salvo
+        output_path = os.path.join(output_dir, "imagem_editada.jpg")
+
+        # Salvar a imagem
+        if cv.imwrite(output_path, self.image_original):
+            print(f"Imagem salva com sucesso em: {output_path}")
+        else:
+            print("Erro ao salvar a imagem.")
+
     def video_input(self):
         """Permite capturar um frame de vídeo e salvá-lo."""
         print("Iniciando captura de vídeo...")
         try:
-            frame = self.video_manager.capture_frame()
-            cv.imshow("Frame Capturado", frame)
-            cv.waitKey(0)
+            while True:
+                # Salva um frame ao pressionar 's'
+                if cv.waitKey(1) & 0xFF == ord('s'):
+                    frame_name = "captured_frame.jpg"
+                    output_path = os.path.join(self.image_save_dir, frame_name)
+                    if cv.imwrite(output_path, frame_name):
+                        print(f"Frame salvo automaticamente em {output_path}")
+                    else:
+                        print("Erro ao salvar o frame.")
 
-            output_path = input("Digite o caminho para salvar o frame (com extensão): ")
-            cv.imwrite(output_path, frame)
-            print(f"Frame salvo em {output_path}")
+                # Encerra ao pressionar 'q'
+                if cv.waitKey(1) & 0xFF == ord('q'):
+                    print("Encerrando captura de vídeo...")
+                    break
+
         finally:
             self.video_manager.release()
             cv.destroyAllWindows()
 
-    def save_image(self):
-        """Salva a imagem processada."""
-        if self.image_processed is not None:
-            output_path = input("Digite o caminho e o nome para salvar a imagem (ex.: output.jpg): ")
-            cv.imwrite(output_path, self.image_processed)
-            print(f"Imagem salva em: {output_path}")
-        else:
-            print("Nenhuma imagem processada disponível para salvar.")
+    # def save_image(self):
+    #     """Salva a imagem processada."""
+    #     if self.image_processed is not None:
+    #         output_path = input("Digite o caminho e o nome para salvar a imagem (ex.: output.jpg): ")
+    #         cv.imwrite(output_path, self.image_processed)
+    #         print(f"Imagem salva em: {output_path}")
+    #     else:
+    #         print("Nenhuma imagem processada disponível para salvar.")
+
+    def capture_photo(self):
+        """Captura uma foto da webcam para edição."""
+        print("Capturando foto...")
+        try:
+            frame = self.video_manager.capture_frame()
+            cv.imshow("Foto Capturada", frame)
+
+            # Salvar automaticamente na pasta de Imagens
+            output_path = os.path.join(self.image_save_dir, "captured_photo.jpg")
+            if cv.imwrite(output_path, frame):
+                print(f"Foto salva automaticamente em {output_path}")
+            else:
+                print("Erro ao salvar a foto.")
+
+            # Pergunta se deseja editar
+            edit = input("Deseja editar esta foto? (s/n): ").strip().lower()
+            if edit == "s":
+                self.edit_image(frame)
+
+        except RuntimeError as e:
+            print(f"Erro ao capturar foto: {e}")
+        finally:
+            cv.destroyAllWindows()
+
+    def edit_video(self):
+        """Permite ao usuário carregar um vídeo para edição."""
+        path = input("Digite o caminho do vídeo: ")
+        capture = cv.VideoCapture(path)
+
+        if not capture.isOpened():
+            print("Erro: não foi possível carregar o vídeo. Verifique o caminho.")
+            return
+
+        print("Iniciando edição do vídeo...")
+        try:
+            while True:
+                ret, frame = capture.read()
+                if not ret:
+                    print("Fim do vídeo.")
+                    break
+
+                cv.imshow("Vídeo em Edição (Pressione 'q' para sair)", frame)
+
+                # Salva um frame ao pressionar 's'
+                if cv.waitKey(1) & 0xFF == ord('s'):
+                    frame_name = "edited_frame.jpg"
+                    output_path = os.path.join(self.image_save_dir, frame_name)
+                    if cv.imwrite(output_path, frame):
+                        print(f"Frame salvo automaticamente em {output_path}")
+                    else:
+                        print("Erro ao salvar o frame.")
+
+                # Encerra ao pressionar 'q'
+                if cv.waitKey(1) & 0xFF == ord('q'):
+                    print("Encerrando edição do vídeo...")
+                    break
+        finally:
+            capture.release()
+            cv.destroyAllWindows()
+
+    def edit_image(self, image):
+        """Aplica filtros ou stickers na imagem capturada."""
+        print("Modo de edição de imagem ativado!")
+        while True:
+            print("\nMenu de Edição:")
+            print("[1] Aplicar um filtro")
+            print("[2] Adicionar um sticker")
+            print("[3] Salvar e sair")
+
+            choice = input("Escolha uma opção: ")
+
+            if choice == "1":
+                filter_name = input("Digite o nome do filtro (ex: sobel, grayscale): ")
+                try:
+                    image = self.image_processor.apply_filter(image, filter_name)
+                    cv.imshow("Imagem Editada", image)
+                except ValueError as e:
+                    print(e)
+
+            elif choice == "2":
+                sticker_index = int(input("Digite o índice do sticker (0 a n): "))
+                x = int(input("Digite a posição x: "))
+                y = int(input("Digite a posição y: "))
+                try:
+                    image = self.sticker_manager.apply_sticker(image, sticker_index, x, y)
+                    cv.imshow("Imagem com Sticker", image)
+                except IndexError as e:
+                    print(e)
+
+            elif choice == "3":
+                output_path = os.path.join(self.image_save_dir, "edited_image.jpg")
+                if cv.imwrite(output_path, image):
+                    print(f"Imagem salva automaticamente em {output_path}")
+                else:
+                    print("Erro ao salvar a imagem.")
+                break
+            else:
+                print("Opção inválida. Tente novamente.")
 
     def run(self):
         """Inicia a interface principal."""
-        print("Bem-vindo ao editor de imagens com menu de filtros!")
+        print("Bem-vindo ao editor de imagens!")
         while True:
             print("\nMenu Principal:")
             print("[1] Carregar uma imagem")
-            print("[2] Capturar um frame de vídeo")
-            print("[3] Sair")
-            
+            print("[2] Carregar um vídeo")
+            print("[3] Capturar uma foto")
+            print("[4] Capturar um vídeo")
+            print("[5] Sair")
+
             choice = input("Escolha uma opção: ")
 
             if choice == "1":
                 self.image_input()
             elif choice == "2":
-                self.video_input()
+                self.edit_video()
             elif choice == "3":
+                self.capture_photo()
+            elif choice == "4":
+                self.video_input()
+            elif choice == "5":
                 print("Saindo...")
                 break
             else:
