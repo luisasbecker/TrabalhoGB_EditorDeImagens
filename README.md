@@ -46,9 +46,9 @@ Para compilar e executar a aplicação, você precisará de:
 
 ## Estrutura do Repositório:
 
-  **main.cpp:** Arquivo principal do programa.
-  **src/:** Diretório contendo os arquivos fonte adicionais.
-  **include/:** Diretório com os cabeçalhos do projeto.
-  **resources/:** Diretório com imagens de exemplo e outros recursos visuais.
-  **shaders/:** Diretório com os shaders usados no programa.
-  **CMakeLists.txt:** Arquivo de configuração para o CMake.
+- **main.cpp:** Arquivo principal do programa.
+- **src/:** Diretório contendo os arquivos fonte adicionais.
+- **include/:** Diretório com os cabeçalhos do projeto.
+- **resources/:** Diretório com imagens de exemplo e outros recursos visuais.
+- **shaders/:** Diretório com os shaders usados no programa.
+- **CMakeLists.txt:** Arquivo de configuração para o CMake.
