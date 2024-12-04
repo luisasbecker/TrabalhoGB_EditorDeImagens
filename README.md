@@ -1,5 +1,9 @@
 # TrabalhoGB_EditorDeImagens
 
+**Nomes:** Ana Beatriz Stahl
+           Emanuele Schlemmer Thomazzoni
+           Luisa Becker dos Santos
+
 Este projeto é um editor de imagens 2D, desenvolvido como trabalho acadêmico para a disciplina de **Processamento Gráfico**. Ele utiliza a API Gráfica OpenGL moderna para manipulação de imagens, aplicando transformações, filtros e outras operações gráficas.
 
 ## Funcionalidades:
